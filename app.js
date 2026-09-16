@@ -20,14 +20,14 @@ app.post("/api/chat", async (req, res) => {
   if (!ticket || !ticket.trim()) {
     return res
       .status(400)
-      .type("type/plain")
+      .type("text/plain")
       .send("Ticket text is required.");
   }
 
   try {
     const chat = await useHistory(async () => {
       history.push({
-        role: "User",
+        role: "user",
         parts: [
           {
             text: ticket,
