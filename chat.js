@@ -55,14 +55,9 @@ export async function chatTicket(history) {
 
     const result = await tool(args);
 
-    history.push({
-      role: "model",
-      parts: [
-        {
-          functionCall,
-        },
-      ],
-    });
+    history.push(
+      response.candidates[0].content
+    );
 
     history.push({
       role: "user",
