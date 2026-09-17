@@ -2,7 +2,7 @@ import express from "express";
 import { chatTicket } from "./chat.js";
 
 const app = express();
-const history = [];
+const chatHistory = [];
 
 let historyQueue = Promise.resolve();
 
@@ -26,7 +26,7 @@ app.post("/api/chat", async (req, res) => {
 
   try {
     const chat = await useHistory(async () => {
-      history.push({
+      chatHistory.push({
         role: "user",
         parts: [
           {
@@ -35,18 +35,18 @@ app.post("/api/chat", async (req, res) => {
         ],
       });
 
-      const chat = await chatTicket(history);
+      const response = await chatTicket(chatHistory);
 
-      history.push({
+      chatHistory.push({
         role: "model",
         parts: [
           {
-            text: chat,
+            text: response,
           },
         ],
       });
 
-      return chat;
+      return response;
     });
 
     return res
@@ -55,6 +55,7 @@ app.post("/api/chat", async (req, res) => {
       .send(chat);
   } catch (error) {
     console.error(error);
+
     return res
       .status(500)
       .type("text/plain")
@@ -65,13 +66,13 @@ app.post("/api/chat", async (req, res) => {
 app.delete("/api/chat", async (req, res) => {
   try {
     await useHistory(async () => {
-      history.length = 0;
+      chatHistory.length = 0;
     });
 
     return res
       .status(200)
       .type("text/plain")
-      .send("History cleared.");
+      .send("History cleared!.");
   } catch (error) {
     console.error(error);
 
