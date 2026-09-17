@@ -8,7 +8,7 @@ let historyQueue = Promise.resolve();
 
 function useHistory(operation) {
   const result = historyQueue.then(operation);
-  historyQueue = result.catch(() => { });
+  historyQueue = result.catch(() => {});
   return result;
 }
 
@@ -24,6 +24,13 @@ app.post("/api/chat", async (req, res) => {
       .send("Ticket text is required.");
   }
 
+  res.setHeader("Content-Type", "text/plain; charset=utf-8");
+  res.setHeader("Cache-Control", "no-cache, no-transform");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+
+  res.flushHeaders();
+
   try {
     const chat = await useHistory(async () => {
       chatHistory.push({
@@ -35,7 +42,12 @@ app.post("/api/chat", async (req, res) => {
         ],
       });
 
-      const response = await chatTicket(chatHistory);
+      const response = await chatTicket(
+        chatHistory,
+        (chunk) => {
+          res.write(chunk);
+        }
+      );
 
       chatHistory.push({
         role: "model",
@@ -45,21 +57,19 @@ app.post("/api/chat", async (req, res) => {
           },
         ],
       });
-
-      return response;
     });
 
-    return res
-      .status(200)
-      .type("text/plain")
-      .send(chat);
+    res.end();
   } catch (error) {
     console.error(error);
 
-    return res
-      .status(500)
-      .type("text/plain")
-      .send("Unable to summarize the ticket.");
+    res.write(
+      `data: ${JSON.stringify({
+        type: "error",
+        content: "Unable to process the request.",
+      })}\n\n`
+    );
+    res.end();
   }
 });
 
@@ -69,14 +79,14 @@ app.delete("/api/chat", async (req, res) => {
       chatHistory.length = 0;
     });
 
-    return res
+    res
       .status(200)
       .type("text/plain")
       .send("History cleared!.");
   } catch (error) {
     console.error(error);
 
-    return res
+    res
       .status(500)
       .type("text/plain")
       .send("Unable to clear history.");

@@ -5,7 +5,7 @@ const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
 });
 
-const systemInstruction =`
+const systemInstruction = `
   You are a helpful AI assistance with access to external tools.
 
   Follow these rules: 
@@ -16,12 +16,14 @@ const systemInstruction =`
     5. You may call multiple tools when solving a multi-step request.
     6. After receiving tool results, explain the answer naturally.
     7. Never invent current weather or exchange-rate information.
+    8. Answer normal questions and writing requests directly. Do not use tools unless required.
 `;
 
 const websiteBuilderInstruction = `
   You are an expert frontend website developer.
   When asked to create a website, MUST create the files using filesystem tools.
 
+  WEBSITE MODE ONLY:
   Rules:
   1. Create a separate directory for each website.
   2. ALWAYS create exactly:
@@ -43,34 +45,51 @@ const websiteBuilderInstruction = `
   13. Finish only after the website is created and verified.
 `;
 
-export async function chatTicket(history) {
+export async function chatTicket(history, onChunk) {
   while (true) {
-    const response = await ai.models.generateContent({
+    const stream = await ai.models.generateContentStream({
       model: "gemini-3.5-flash-lite",
       config: {
         systemInstruction: `
-          ${systemInstruction} 
+          ${systemInstruction}
           ${websiteBuilderInstruction}
         `,
         tools: toolDefinations,
       },
-
       contents: history,
     });
 
-    const functionCall = response.functionCalls?.[0];
+    let fullText = "";
+    let functionCallPart = null;
 
-    if (!functionCall) {
-      const text = response.text.trim();
+    for await (const chunk of stream) {
+      const parts = chunk.candidates?.[0]?.content?.parts ?? [];
 
-      if (!text) {
+      for (const part of parts) {
+        // Normal text
+        if (part.text) {
+          fullText += part.text;
+
+          if (onChunk) {
+            onChunk(part.text);
+          }
+        }
+
+        if (part.functionCall) {
+          functionCallPart = part;
+        }
+      }
+    }
+
+    if (!functionCallPart) {
+      if (!fullText.trim()) {
         throw new Error("Gemini returned an empty response");
       }
 
-      return text;
+      return fullText.trim();
     }
 
-    const { name, args } = functionCall;
+    const { name, args } = functionCallPart.functionCall;
 
     const tool = toolFunctions[name];
 
@@ -82,9 +101,12 @@ export async function chatTicket(history) {
 
     const result = await tool(args);
 
-    history.push(
-      response.candidates[0].content
-    );
+    history.push({
+      role: "model",
+      parts: [
+        functionCallPart,
+      ],
+    });
 
     history.push({
       role: "user",
