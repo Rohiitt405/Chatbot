@@ -1,5 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
 import { toolDefinations, toolFunctions } from "./Tools/index.js";
+import { retrieveRelevantChunks } from "./rag/retrievalService.js";
+import { buildRagContext } from "./rag/promptBuilder.js";
 
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
@@ -46,14 +48,38 @@ const websiteBuilderInstruction = `
 `;
 
 export async function chatTicket(history, onChunk) {
+  // Find the latest text question from the user.
+  const lastUserMessage = [...history]
+    .reverse()
+    .find(message =>
+      message.role === "user" &&
+      message.parts?.some(part => typeof part.text === "string")
+    );
+
+  const question = lastUserMessage?.parts
+    ?.filter(part => typeof part.text === "string")
+    .map(part => part.text)
+    .join("\n");
+
+  let ragContext = "";
+
+  if (question?.trim()) {
+    const chunks = await retrieveRelevantChunks(question, 5);
+    ragContext = buildRagContext(chunks);
+  }
+
+  const combinedSystemInstruction = `
+    ${systemInstruction}
+    ${websiteBuilderInstruction}
+
+    ${ragContext}
+  `;
+
   while (true) {
     const stream = await ai.models.generateContentStream({
       model: "gemini-3.5-flash-lite",
       config: {
-        systemInstruction: `
-          ${systemInstruction}
-          ${websiteBuilderInstruction}
-        `,
+        systemInstruction: combinedSystemInstruction,
         tools: toolDefinations,
       },
       contents: history,
@@ -66,7 +92,6 @@ export async function chatTicket(history, onChunk) {
       const parts = chunk.candidates?.[0]?.content?.parts ?? [];
 
       for (const part of parts) {
-        // Normal text
         if (part.text) {
           fullText += part.text;
 
@@ -90,7 +115,6 @@ export async function chatTicket(history, onChunk) {
     }
 
     const { name, args } = functionCallPart.functionCall;
-
     const tool = toolFunctions[name];
 
     if (!tool) {
@@ -103,9 +127,7 @@ export async function chatTicket(history, onChunk) {
 
     history.push({
       role: "model",
-      parts: [
-        functionCallPart,
-      ],
+      parts: [functionCallPart],
     });
 
     history.push({
@@ -114,9 +136,7 @@ export async function chatTicket(history, onChunk) {
         {
           functionResponse: {
             name,
-            response: {
-              result,
-            },
+            response: { result },
           },
         },
       ],
