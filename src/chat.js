@@ -64,7 +64,10 @@ export async function chatTicket(history, onChunk) {
   let ragContext = "";
 
   if (question?.trim()) {
-    const chunks = await retrieveRelevantChunks(question, 5);
+    const chunks = await retrieveRelevantChunks(question, {
+      topK: 5,
+      minScore: 0.5
+    });
     ragContext = buildRagContext(chunks);
   }
 
