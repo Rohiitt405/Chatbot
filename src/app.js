@@ -1,5 +1,6 @@
 import express from "express";
 import { chatTicket } from "./chat.js";
+import documentRoutes from "../src/routes/documentRoutes.js"
 
 const app = express();
 const chatHistory = [];
@@ -13,6 +14,7 @@ function useHistory(operation) {
 }
 
 app.use(express.text());
+app.use("/api/documents", documentRoutes);
 
 app.post("/api/chat", async (req, res) => {
   const ticket = req.body;
