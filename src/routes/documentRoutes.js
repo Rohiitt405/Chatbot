@@ -45,10 +45,11 @@ router.post("/upload", upload.single("document"), async (req, res, next) => {
         let totalChunks = 0;
 
         for (const page of pages) {
-            const result = await ingestDocument(
-                page.text,
-                `${documentId}-page-${page.pageNumber}`
-            );
+            const result = await ingestDocument(page.text, {
+                documentId,
+                source: filename,
+                pageNumber: page.pageNumber
+            });
 
             totalChunks += result.totalChunks;
         }

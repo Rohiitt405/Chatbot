@@ -2,13 +2,16 @@ import { splitIntoChunks } from "./chunker.js";
 import { generateEmbedding } from './embeddingService.js';
 import { index } from './vectorStore.js';
 
-export async function ingestDocument(text, source) {
+export async function ingestDocument(
+    text,
+    { documentId, source, pageNumber }
+) {
     if (!text?.trim()) {
         throw new Error("Document text cannot be empty");
     }
 
-    if (!source?.trim()) {
-        throw new Error("Document source is required");
+    if (!documentId || !source || !Number.isInteger(pageNumber)) {
+        throw new Error("Valid document metadata is required");
     }
 
     const chunks = splitIntoChunks(text);
@@ -18,12 +21,14 @@ export async function ingestDocument(text, source) {
         const embedding = await generateEmbedding(chunks[i]);
 
         records.push({
-            id: `${source}-chunk-${i}`,
+            id: `${documentId}page-${pageNumber}-chunk-${i}`,
             values: embedding,
             metadata: {
-                text: chunks[i],
+                documentId,
                 source,
-                chunkIndex: i
+                pageNumber,
+                chunkIndex: i,
+                text: chunks[i],
             }
         });
     }
@@ -31,14 +36,16 @@ export async function ingestDocument(text, source) {
     const batchSize = 100;
 
     for (let i = 0; i < records.length; i += batchSize) {
-        const batch = records.slice(i, i+batchSize);
+        const batch = records.slice(i, i + batchSize);
         await index.upsert({
             records: batch
         });
     }
 
     return {
+        documentId,
         source,
+        pageNumber,
         totalChunks: chunks.length
     };
 }

@@ -10,8 +10,11 @@ export function buildRagContext(chunks) {
     }
 
     const context = chunks
-        .map((chunk, index) => `
-                [Source: ${chunk.source}, Chunk: ${chunk.chunkIndex}]${chunk.text}`)
+        .map(chunk => `
+            [Source: ${chunk.source}, Page: ${chunk.pageNumber ?? "unknown"},
+                Chunk: ${chunk.chunkIndex}]
+                ${chunk.text}
+            `)
         .join("\n");
 
     return `
@@ -32,5 +35,9 @@ export function buildRagContext(chunks) {
                 7. When using retrieved documents, cite the source inline,
                     for example: [Source: fda-notes.pdf].
                 8. Only cite sources present in the retrieved context.
-                9. Never invent filenames, page numbers, quotations, or references.`;
+                9. Never invent filenames, page numbers, quotations, or references.
+                10. Cite supporting sources using [Source: filename, Page: N].
+                11. Only cite filenames and page numbers present in the retrieved context.
+                12. Never invent page numbers or references.
+                `;
 }

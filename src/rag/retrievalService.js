@@ -31,8 +31,10 @@ export async function retrieveRelevantChunks(
         .map(match => ({
             id: match.id,
             score: match.score,
-            text: match.metadata?.text ?? "",
-            source: match.metadata?.source ?? "unknown",
-            chunkIndex: match.metadata?.chunkIndex ?? null
+            text: match.metadata.text,
+            documentId: match.metadata.documentId,
+            source: match.metadata.source ?? "unknown",
+            pageNumber: match.metadata.pageNumber ?? null,
+            chunkIndex: match.metadata.chunkIndex ?? null
         }));
 }
