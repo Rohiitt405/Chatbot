@@ -10,7 +10,7 @@ An AI chatbot based on the Google Gemini that utilizes **Node.js, Express** and 
 
 This project focuses on the concept of **AI function calling (tool use)**, which refers to the model's ability to decide when to call external functions on its own. It also has the following features: saving the **history** of the conversation for context understanding in **multi-turn dialogues**, **streaming** the response back to the user in real-time, and having a clear separation between the model and the tool layer, which allows for easy expansion and customization.
 
-An excellent way to understand how modern AI assistants work.
+An excellent way to understand how modern AI assistants work under the hood.
 
 ---
 
@@ -31,13 +31,13 @@ The AI automatically decides which tool to call based on your message:
 
 | Tool | What it does |
 |------|-------------|
-| 🧮 **Calculator** | Arithmetic operations = add, subtract, multiply, divide, mod, power |
+| 🧮 **Calculator** | Arithmetic operations: add, subtract, multiply, divide, mod, power |
 | 🌤️ **Weather** | Fetches live current weather for any city via WeatherAPI |
 | 💱 **Currency Converter** | Gets real-time exchange rates between any two currencies via Frankfurter API |
 | 🌐 **Website Builder** | Generates complete HTML/CSS/JS websites and saves them to disk |
 
 ### 🌐 Website Builder (AI Agent Mode)
-- Ask the AI to "build a portfolio website" or "create a landing page for a coffee shop"
+- Ask the AI to *"build a portfolio website"* or *"create a landing page for a coffee shop"*
 - The AI acts as a **frontend developer agent** — it creates directories, writes `index.html`, `style.css`, and `script.js` files autonomously
 - Generated sites are saved in a sandboxed `generated-sites/` folder
 - Path traversal is blocked for security
@@ -55,17 +55,20 @@ The AI automatically decides which tool to call based on your message:
 
 ```
 Chatbot/
-├── server.js              # Entry point — starts the Express server
-├── app.js                 # Route definitions (POST & DELETE /api/chat)
-├── chat.js                # Gemini AI integration + tool-calling loop
-├── Tools/
-│   ├── index.js           # Registers all tools (definitions + functions)
-│   ├── calculator.js      # Arithmetic calculator tool
-│   ├── weather.js         # Live weather fetcher tool
-│   ├── getExchangeRate.js # Currency exchange rate tool
-│   └── websiteBuilder/
-│       └── websiteOperations.js  # File system tools for website generation
-├── .env.example           # Environment variable template
+├── src/
+│   ├── server.js              # Entry point — loads env & starts the Express server
+│   ├── app.js                 # Route definitions (POST & DELETE /api/chat)
+│   ├── chat.js                # Gemini AI integration + tool-calling loop
+│   └── Tools/
+│       ├── index.js           # Registers all tools (definitions + functions)
+│       ├── calculator.js      # Arithmetic calculator tool
+│       ├── weather.js         # Live weather fetcher (WeatherAPI)
+│       ├── getExchangeRate.js # Currency exchange rate tool (Frankfurter API)
+│       └── websiteBuilder/
+│           └── websiteOperations.js  # Filesystem tools for website generation
+├── generated-sites/           # AI-generated websites are saved here (auto-created)
+├── .env                       # Your local environment variables (not committed)
+├── .env.example               # Environment variable template
 └── package.json
 ```
 
@@ -104,11 +107,11 @@ PORT=port_number
 ### Run the Server
 
 ```bash
-# Development (auto-restarts on file change)
+# Development (auto-restarts on file change — requires nodemon)
 npm run dev
 
 # Production
-node server.js
+node src/server.js
 ```
 
 Server starts at → `http://localhost:8000`
@@ -168,24 +171,59 @@ DELETE /api/chat
 User Message
      │
      ▼
-POST /api/chat  (app.js)
-     │
+POST /api/chat  (src/app.js)
+     │  Adds user message to chatHistory[]
      ▼
-chatTicket()  (chat.js)
+chatTicket()  (src/chat.js)
      │
      ├──► Gemini generates response
      │         │
-     │         ├── Text response? ──► Stream to user ✅
+     │         ├── Text chunk? ──► Stream to user via res.write() ✅
      │         │
-     │         └── Tool call? ──► Execute tool (calculator / weather / currency / filesystem)
+     │         └── Function call? ──► Execute tool
+     │                                  │   (calculator / weather / currency / filesystem)
      │                                  │
-     │                                  └── Result fed back to Gemini ──► Loop again
+     │                                  └── Result pushed back to history ──► Loop again
      │
      ▼
-Streamed plain-text response to client
+Full streamed plain-text response to client
 ```
 
-The core loop in `chat.js` continues until Gemini returns a **pure text response** (no more tool calls), which is then streamed to the user.
+The core loop in `src/chat.js` continues until Gemini returns a **pure text response** (no more function calls), which is fully streamed to the user.
+
+---
+
+## 🔧 Available Tools — Details
+
+### 🧮 Calculator (`src/Tools/calculator.js`)
+Performs basic arithmetic. Supported operations:
+
+| Operation | Symbol |
+|-----------|--------|
+| `add` | `a + b` |
+| `subtract` | `a - b` |
+| `multiply` | `a * b` |
+| `divide` | `a / b` (throws on divide-by-zero) |
+| `mod` | `a % b` |
+| `power` | `a ** b` |
+
+### 🌤️ Weather (`src/Tools/weather.js`)
+Fetches live weather data for a given city using the [WeatherAPI](https://www.weatherapi.com/) `/current.json` endpoint. Requires `WEATHER_API_KEY` in `.env`.
+
+### 💱 Exchange Rate (`src/Tools/getExchangeRate.js`)
+Fetches the latest exchange rate between two currency codes (e.g. `USD` → `INR`) using the free [Frankfurter API](https://frankfurter.dev/). No API key needed.
+
+### 🌐 Website Builder (`src/Tools/websiteBuilder/websiteOperations.js`)
+Provides four filesystem tools the AI uses to autonomously build websites:
+
+| Function | Description |
+|----------|-------------|
+| `createDirectory` | Creates a new directory inside `generated-sites/` |
+| `writeFile` | Creates or overwrites a file with given content |
+| `readFile` | Reads an existing file |
+| `listFiles` | Lists all files in a directory |
+
+All paths are sandboxed to `generated-sites/` — access outside this folder is blocked.
 
 ---
 
@@ -193,7 +231,7 @@ The core loop in `chat.js` continues until Gemini returns a **pure text response
 
 1. Fork the repository
 2. Create a feature branch: `git checkout -b feature/new-tool`
-3. Add your tool in `Tools/` and register it in `Tools/index.js`
+3. Add your tool in `src/Tools/` and register it in `src/Tools/index.js`
 4. Submit a pull request with a clear description
 
 ---
