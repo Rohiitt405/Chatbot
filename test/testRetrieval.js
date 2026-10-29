@@ -14,7 +14,10 @@ const { retrieveRelevantChunks } = await import("../src/rag/retrievalService.js"
 async function main() {
     const question = "What is Retrieval-Augmented Generation?";
 
-    const chunks = await retrieveRelevantChunks(question, 5);
+    const chunks = await retrieveRelevantChunks(question, {
+        topK: 5,
+        minScore: 0.5
+    });
 
     if (chunks.length === 0) {
         console.log("No matching document chunks found.");
@@ -23,6 +26,8 @@ async function main() {
 
     for (const [i, chunk] of chunks.entries()) {
         console.log(`\nResult ${i + 1}`);
+        console.log("Page:", chunk.pageNumber);
+        console.log("Document ID:", chunk.documentId);
         console.log("Score:", chunk.score);
         console.log("Source:", chunk.source);
         console.log("Chunk:", chunk.chunkIndex);

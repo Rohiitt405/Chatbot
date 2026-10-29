@@ -5,6 +5,12 @@ import { randomUUID } from "node:crypto";
 
 import { extractPdfPages } from "../rag/documentParser.js";
 import { ingestDocument } from "../rag/ingestionService.js";
+import {
+    listDocuments,
+    registerDocument,
+    removeDocument
+} from "../rag/documentRegistry.js";
+import { index } from "../rag/vectorStore.js";
 
 const router = Router();
 
@@ -23,6 +29,54 @@ const upload = multer({
     }
 });
 
+// GET /api/documents
+router.get("/", async (req, res, next) => {
+    try {
+        const documents = await listDocuments();
+
+        return res.status(200).json({
+            total: documents.length,
+            documents
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
+// DELETE /api/documents/:documentId
+router.delete("/:documentId", async (req, res, next) => {
+    try {
+        const { documentId } = req.params;
+        const documents = await listDocuments();
+
+        const document = documents.find(
+            item => item.documentId === documentId
+        );
+
+        if (!document) {
+            return res.status(404).json({
+                error: "Document not found"
+            });
+        }
+
+        await index.deleteMany({
+            filter: {
+                documentId: { $eq: documentId }
+            }
+        });
+
+        await removeDocument(documentId);
+
+        return res.status(200).json({
+            message: "Document deleted successfully",
+            documentId
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
+// POST /api/documents/upload
 router.post("/upload", upload.single("document"), async (req, res, next) => {
     try {
         if (!req.file) {
@@ -31,7 +85,6 @@ router.post("/upload", upload.single("document"), async (req, res, next) => {
             });
         }
 
-        // Reject files without the expected PDF signature.
         if (req.file.buffer.subarray(0, 5).toString() !== "%PDF-") {
             return res.status(400).json({
                 error: "The uploaded file is not a valid PDF"
@@ -53,6 +106,13 @@ router.post("/upload", upload.single("document"), async (req, res, next) => {
 
             totalChunks += result.totalChunks;
         }
+
+        await registerDocument({
+            documentId,
+            filename,
+            totalPages: pages.length,
+            totalChunks
+        });
 
         return res.status(201).json({
             message: "PDF ingested successfully",
