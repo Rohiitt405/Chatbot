@@ -1,3 +1,4 @@
 node_modules
 .env
 generated-sites
+src/routes/image.png
